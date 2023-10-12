@@ -2,6 +2,8 @@
 title: "NFL Pool 2023"
 output: html_document
 date: '2023-10-10'
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include = FALSE}
@@ -9,30 +11,95 @@ knitr::opts_chunk$set(echo = FALSE)
 library(dplyr)
 library(rvest)
 library(kableExtra)
+library(data.table)
+su <- function(x) sort(unique(x))
+# setwd("~/public_git/nfl_pool_2023")
 ```
 
 <!-- Rscript -e 'rmarkdown::render(input = "/home/kes/public/kennyshirley.com/public_html/nfl2023/index.Rmd", output_dir = "/home/kes/public/kennyshirley.com/public_html/nfl2023")' -->
+
+
+``` {r read-game-results}
+# get the football reference URL
+url <- "https://www.pro-football-reference.com/years/2023/games.htm#games"
+wk <- read_html(url)
+
+d <- wk %>% 
+  html_element("table") %>% 
+  html_table() %>% 
+  as.data.frame()
+
+names(d)[c(5, 7)] <- c("winner", "loser")
+
+d <- select(d, 
+            week = Week, day = Day, date = Date, time = Time, 
+            winner, loser, wpts = PtsW, lpts = PtsL)
+
+d <- filter(d, week != "Week")
+
+# read in the team information (names, divisions, conferences):
+teams <- fread("team_info.csv", data.table = FALSE)
+teams <- arrange(teams, conference, division)
+
+# gather info from the winning team
+w_df <- d %>% 
+  filter(wpts != "") %>% 
+  group_by(winner) %>% 
+  summarize(W = n(), 
+            points_for = sum(as.numeric(wpts)), 
+            points_against = sum(as.numeric(lpts)))
+
+# gather info from the losing team
+l_df <- d %>% 
+  filter(wpts != "") %>% 
+  group_by(loser) %>% 
+  summarize(L = n(), 
+            points_for = sum(as.numeric(lpts)), 
+            points_against = sum(as.numeric(wpts)))
+
+# generate standings:
+st <- w_df %>% full_join(l_df, by = c("winner" = "loser")) %>% 
+  replace_na(list(W = 0, points_for.x = 0, points_against.x = 0, 
+                  L = 0, points_for.y = 0, points_against.y = 0)) %>% 
+  mutate(pf = points_for.x + points_for.y, 
+         pa = points_against.x + points_against.y, 
+         diff = pf - pa) %>% 
+  select(team = winner, W, L, pf, pa, diff) %>% 
+  inner_join(teams) %>% 
+  as.data.frame() %>% 
+  arrange(conference, division, desc(W), desc(diff))
+
+
+# get pythagorean formula:
+st <- st %>% mutate(p_hat = round(pf^2.37 / (pf^2.37 + pa^2.37), 2))
+st <- st %>% mutate(beta = round(diff / (W + L), 1))
+
+
+
+```
 
 # Standings
 
 Last updated at `r Sys.time()` EST.
 
 ```{r set-up-data-frame}
-df <- data.frame(Name = c("Kenny", "Rish", "Paul", "Nick"), 
-                 Win_Probability = c(0, 0, 0, 0), 
-                 Expected_Payout = c(0, 0, 0, 0), 
-                 Expected_Points = c(0, 0, 0, 0), 
-                 Division_Points = c(0, 0, 0, 0), 
-                 Conference_Championship = c(0, 0, 0, 0), 
-                 Conference_Champion = c(0, 0, 0, 0), 
-                 Super_Bowl = c(0, 0, 0, 0))
+df <- data.frame(Name = c("Kenny", "Rish", "Paul", "Gavin", "Nick"), 
+                 Points = rep(0, 5), 
+                 Win_Probability = c(0, 0, 0, 0, 0), 
+                 Expected_Payout = c(0, 0, 0, 0, 0), 
+                 Expected_Points = c(0, 0, 0, 0, 0), 
+                 Division_Points = c(0, 0, 0, 0, 0), 
+                 Conference_Championship = c(0, 0, 0, 0, 0), 
+                 Conference_Champion = c(0, 0, 0, 0, 0), 
+                 Super_Bowl = c(0, 0, 0, 0, 0))
 
 names_spaced <- c("Name", 
+                  "Total<br>Points (27)", 
                   "Win<br>Probability", 
                   "Expected<br>Payout", 
-                  "Expected<br>Points", 
+                  "Expected<br>Total Points", 
                   "Division (8)", 
-                  "Conference<br>Championship (6)", 
+                  "Conference<br>Championship (8)", 
                   "Conference<br>Champion (6)", 
                   "Super<br>Bowl (5)")
 
