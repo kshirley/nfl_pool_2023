@@ -1,0 +1,40 @@
+---
+title: "NFL Pool 2023"
+output: html_document
+date: '2023-10-10'
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(rvest)
+library(kableExtra)
+```
+
+# Standings
+
+Last updated at `r Sys.time()` EST.
+
+```{r set-up-data-frame}
+df <- data.frame(Name = c("Kenny", "Rish", "Paul", "Nick"), 
+                 Win_Probability = c(0, 0, 0, 0), 
+                 Expected_Payout = c(0, 0, 0, 0), 
+                 Expected_Points = c(0, 0, 0, 0), 
+                 Division_Points = c(0, 0, 0, 0), 
+                 Conference_Championship = c(0, 0, 0, 0), 
+                 Conference_Champion = c(0, 0, 0, 0), 
+                 Super_Bowl = c(0, 0, 0, 0))
+
+names_spaced <- c("Name", 
+                  "Win<br>Probability", 
+                  "Expected<br>Payout", 
+                  "Expected<br>Points", 
+                  "Division (8)", 
+                  "Conference<br>Championship (6)", 
+                  "Conference<br>Champion (6)", 
+                  "Super<br>Bowl (5)")
+
+kable(df, format = "html", escape = FALSE, col.names = names_spaced) %>% 
+  kable_styling()
+
+```
