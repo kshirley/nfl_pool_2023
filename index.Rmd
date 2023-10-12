@@ -11,6 +11,8 @@ library(rvest)
 library(kableExtra)
 ```
 
+<!-- Rscript -e 'rmarkdown::render(input = "/home/kes/public/kennyshirley.com/public_html/nfl2023/index.Rmd", output_dir = "/home/kes/public/kennyshirley.com/public_html/nfl2023")' -->
+
 # Standings
 
 Last updated at `r Sys.time()` EST.
