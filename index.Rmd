@@ -105,7 +105,7 @@ d <- d %>%
   left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team"))
 
 # Now, simulate 10,000 regular seasons:
-n_sim <- 2000
+n_sim <- 10000
 sigma <- summary(f)$sigma
 N <- nrow(d)
 seasons <- vector("list", length = n_sim)
