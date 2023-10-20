@@ -1,33 +1,33 @@
-﻿team,division,conference
-Arizona Cardinals,West,NFC
-Atlanta Falcons,South,NFC
-Baltimore Ravens,North,AFC
-Buffalo Bills,East,AFC
-Carolina Panthers,South,NFC
-Chicago Bears,North,NFC
-Cincinnati Bengals,North,AFC
-Cleveland Browns,North,AFC
-Dallas Cowboys,East,NFC
-Denver Broncos,West,AFC
-Detroit Lions,North,NFC
-Green Bay Packers,North,NFC
-Houston Texans,South,AFC
-Indianapolis Colts,South,AFC
-Jacksonville Jaguars,South,AFC
-Kansas City Chiefs,West,AFC
-Las Vegas Raiders,West,AFC
-Los Angeles Chargers,West,AFC
-Los Angeles Rams,West,NFC
-Miami Dolphins,East,AFC
-Minnesota Vikings,North,NFC
-New England Patriots,East,AFC
-New Orleans Saints,South,NFC
-New York Giants,East,NFC
-New York Jets,East,AFC
-Philadelphia Eagles,East,NFC
-Pittsburgh Steelers,North,AFC
-San Francisco 49ers,West,NFC
-Seattle Seahawks,West,NFC
-Tampa Bay Buccaneers,South,NFC
-Tennessee Titans,South,AFC
-Washington Commanders,East,NFC
+﻿team,division,conference,nickname
+Arizona Cardinals,West,NFC,
+Atlanta Falcons,South,NFC,Falcons
+Baltimore Ravens,North,AFC,Ravens
+Buffalo Bills,East,AFC,Bills
+Carolina Panthers,South,NFC,Panthers
+Chicago Bears,North,NFC,
+Cincinnati Bengals,North,AFC,Bengals
+Cleveland Browns,North,AFC,
+Dallas Cowboys,East,NFC,Cowboys
+Denver Broncos,West,AFC,
+Detroit Lions,North,NFC,Lions
+Green Bay Packers,North,NFC,Packers
+Houston Texans,South,AFC,
+Indianapolis Colts,South,AFC,
+Jacksonville Jaguars,South,AFC,Jags
+Kansas City Chiefs,West,AFC,Chiefs
+Las Vegas Raiders,West,AFC,
+Los Angeles Chargers,West,AFC,Chargers
+Los Angeles Rams,West,NFC,
+Miami Dolphins,East,AFC,Dolphins
+Minnesota Vikings,North,NFC,Vikings
+New England Patriots,East,AFC,
+New Orleans Saints,South,NFC,Saints
+New York Giants,East,NFC,
+New York Jets,East,AFC,Jets
+Philadelphia Eagles,East,NFC,Eagles
+Pittsburgh Steelers,North,AFC,
+San Francisco 49ers,West,NFC,49ers
+Seattle Seahawks,West,NFC,
+Tampa Bay Buccaneers,South,NFC,
+Tennessee Titans,South,AFC,Titans
+Washington Commanders,East,NFC,
