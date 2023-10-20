@@ -145,7 +145,7 @@ st_today <- st_today %>%
 
 st_today <- st_today %>% 
   select(team:conference) %>% 
-  left_join(select(beta, team, strength = beta_adj)) %>% 
+  left_join(select(beta, team, strength = beta_adj), by = "team") %>% 
   mutate(strength = round(strength, 1))
 
 ```
