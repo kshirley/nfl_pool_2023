@@ -67,16 +67,23 @@ d <- d %>%
 d <- d %>% 
   mutate(margin = case_when(!is.na(home_pts) ~ pmin(pmax(home_pts - away_pts, -25), 25)))
 
+n_games_played <- sum(!is.na(d$margin))
+
+# insert some code to check if any new games have been played since last simulation...
+```
+
+
+``` {r fit-model}
 # read in the team information (names, divisions, conferences):
 teams <- fread("team_info.csv", data.table = FALSE)
 teams <- arrange(teams, conference, division)
 
 # create the design matrix:
-# m <- filter(d, !is.na(home_pts)) %>% select(home_team, away_team, margin)
+m <- filter(d, !is.na(home_pts)) %>% select(home_team, away_team, margin)
 
 # set to only have data up to week K:
-k <- 5
-m <- filter(d, !is.na(home_pts) & week <= k) %>% select(home_team, away_team, margin)
+# k <- 5
+# m <- filter(d, !is.na(home_pts) & week <= k) %>% select(home_team, away_team, margin)
 
 n <- nrow(m)
 X <- matrix(0, n, 32)
@@ -104,6 +111,47 @@ d <- d %>%
   left_join(select(beta, team, home_beta = beta_adj), by = c("home_team" = "team")) %>% 
   left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team"))
 
+# get today's standings:
+today <- d %>% 
+  filter(!is.na(margin)) %>% 
+  mutate(home_win = case_when(!is.na(margin) ~ as.numeric(margin > 0) + 
+                                0.5 * as.numeric(margin == 0)))
+
+# gather info from the home team:
+h_df <- today %>% 
+  group_by(home_team) %>% 
+  summarize(W = sum(home_win), 
+            L = sum(1 - home_win))
+
+# gather info for the away team:
+a_df <- today %>% 
+  group_by(away_team) %>% 
+  summarize(W = sum(1 - home_win), 
+            L = sum(home_win))
+
+# generate standings:
+st_today <- h_df %>% full_join(a_df, by = c("home_team" = "away_team")) %>% 
+  mutate(W = W.x + W.y, 
+         L = L.x + L.y) %>% 
+  select(team = home_team, W, L) %>% 
+  inner_join(teams, by = "team") %>% 
+  as.data.frame() %>% 
+  arrange(conference, division, desc(W))
+
+# Compute rank within division:
+st_today <- st_today %>% 
+  group_by(conference, division) %>% 
+  mutate(div_rank = rank(L, ties.method = "min"))
+
+st_today <- st_today %>% 
+  select(team:conference) %>% 
+  left_join(select(beta, team, strength = beta_adj)) %>% 
+  mutate(strength = round(strength, 1))
+
+```
+
+
+``` {r run-simulations}
 # Now, simulate 10,000 regular seasons:
 n_sim <- 10000
 sigma <- summary(f)$sigma
@@ -347,7 +395,7 @@ for (i in 1:n_sim) {
   seasons[[i]] <- out
 }
 
-saveRDS(seasons, file = paste0("simulation_2k_", substr(Sys.time(), 1, 10), ".rds"))
+saveRDS(seasons, file = paste0("simulation_10k_", substr(Sys.time(), 1, 10), ".rds"))
 
 ```
 
@@ -446,7 +494,9 @@ df <- arrange(df, desc(Win_Probability))
 df <- cbind(Rank = 1:5, df)
 
 kable(df, format = "html", escape = FALSE, col.names = names_spaced) %>% 
-  kable_styling()
+  kable_styling() %>% 
+  row_spec(which(df$Expected_Payout > 0), background = "#90ee90") %>% 
+  row_spec(which(df$Expected_Payout <= 0), background = "#ffb09c")
 
 ```
 
@@ -454,10 +504,17 @@ kable(df, format = "html", escape = FALSE, col.names = names_spaced) %>%
 
 ``` {r show-picks}
 rownames(picks) <- as.character(1:15)
-names(picks) <- c("Game", "Points", "Kenny", "Nick", "Paul", "Gavin", "Rish")
+names(picks) <- c("Game", "Points", "Ken", "Nick", "Paul", "Gavin", "Rish")
 kable(picks, format = "html") %>% 
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 
+```
+
+# Standings
+
+``` {r show-standings}
+kable(st_today, format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
 <!-- # Simulation Accuracy -->
