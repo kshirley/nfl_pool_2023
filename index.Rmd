@@ -556,7 +556,7 @@ ts_plot <- ts %>%
   geom_line() + 
   theme(legend.position = "bottom")
 
-ggplotly(ts_plot)
+ggplotly(ts_plot, width = 900)
 
 ```
 
@@ -590,7 +590,13 @@ kable(picks, format = "html") %>%
 # NFL Standings
 
 ``` {r show-standings}
-DT::datatable(st_today)
+DT::datatable(st_today, options = list(pageLength = 32)) %>% 
+  formatStyle(
+    'division',
+    target = 'row',
+    backgroundColor = styleEqual(c("East", "North", "South", "West"), 
+                                 c(gray(0.8), "white", gray(0.8), "white"))
+  )
 ```
 
 
