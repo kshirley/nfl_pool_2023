@@ -26,6 +26,8 @@ options(dplyr.summarise.inform = FALSE)
 
 <!-- scp /Users/kshirley/public_git/nfl_pool_2023/index.Rmd kes@66.228.42.50:/home/kes/public/kennyshirley.com/public_html/nfl2023 -->
 
+<!-- scp 'kes@66.228.42.50:/home/kes/public/kennyshirley.com/public_html/nfl2023/*2023-12-25*'
+/Users/kshirley/public_git/nfl_pool_2023  -->
 
 
 ``` {r read-game-results}
@@ -71,8 +73,8 @@ d <- d %>%
   mutate(margin = case_when(!is.na(home_pts) ~ pmin(pmax(home_pts - away_pts, -25), 25)))
 
 # simulate as if we're running this on a certain day:
-# today <- as.Date("2023-12-24")
-today <- substr(Sys.time(), 1, 10)
+today <- as.Date("2023-12-26")
+# today <- substr(Sys.time(), 1, 10)
 d$margin[d$date >= today] <- NA
 
 # count the number of games that have been played:
@@ -492,7 +494,7 @@ names_spaced <- c("Rank",
                   "Super<br>Bowl (5)")
 
 if (n_games_played > previous_games_played) {
-  df <- data.frame(Name = c("Ken", "Rish", "Paul", "Gavin", "Nick"), 
+  df <- data.frame(Name = c("Ken", "Nick", "Paul", "Gavin", "Rish"), 
                    Points_Earned = rep(0, 5), 
                    Expected_Points = e_points, 
                    Win_Probability = win_probability, 
@@ -541,10 +543,18 @@ for (i in 1:n_states) {
 ts <- bind_rows(lapply(states, function(x) x$df)) %>% 
   select(date, Name, Win_Probability, Expected_Payout)
 
+# switch 'nick' and 'rish' before 12/25:
+sel1 <- ts$date <= '2023-12-25' & ts$Name == "Rish"
+sel2 <- ts$date <= '2023-12-25' & ts$Name == "Nick"
+ts$Name[sel1] <- "Nick"
+ts$Name[sel2] <- "Rish"
+
+# Make the plot:
 ts_plot <- ts %>% 
   ggplot(aes(x = date, y = Win_Probability, color = Name )) + 
   geom_point(alpha = 0.2) + 
-  geom_line()
+  geom_line() + 
+  theme(legend.position = "bottom")
 
 ggplotly(ts_plot)
 
