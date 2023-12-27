@@ -17,6 +17,7 @@ library(ggplot2)
 library(tidyr)
 library(DT)
 library(plotly)
+library(ggimage)
 su <- function(x) sort(unique(x))
 options(dplyr.summarise.inform = FALSE)
 # setwd("~/public_git/nfl_pool_2023")
@@ -73,8 +74,8 @@ d <- d %>%
   mutate(margin = case_when(!is.na(home_pts) ~ pmin(pmax(home_pts - away_pts, -25), 25)))
 
 # simulate as if we're running this on a certain day:
-today <- as.Date("2023-12-26")
-# today <- substr(Sys.time(), 1, 10)
+# today <- as.Date("2023-12-26")
+today <- substr(Sys.time(), 1, 10)
 d$margin[d$date >= today] <- NA
 
 # count the number of games that have been played:
@@ -529,7 +530,7 @@ if (n_games_played > previous_games_played) {
 #   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
-``` {r time-series-plot}
+``` {r time-series-plot, fig.width = 9}
 all_states <- sort(system('ls state*' , intern = TRUE))
 n_states <- length(all_states)
 states <- vector("list", n_states)
@@ -556,7 +557,20 @@ ts_plot <- ts %>%
   geom_line() + 
   theme(legend.position = "bottom")
 
-ggplotly(ts_plot, width = 900)
+# ggplotly(ts_plot, width = 900)
+
+image_df <- tail(ts, 5) %>% 
+  left_join(data.frame(Name = c("Ken", "Rish", "Paul", "Nick", "Gavin"), 
+                       location = paste0("faces_", c("ken", "rish", "paul", "nick", "gavin"), ".png")), 
+            by = "Name")
+
+ts_plot + 
+  geom_image(data = image_df, 
+             aes(x = date, 
+                 y = Win_Probability, 
+                 image = location), 
+             size = 0.07, 
+             inherit.aes = FALSE)
 
 ```
 
