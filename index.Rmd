@@ -27,7 +27,7 @@ options(dplyr.summarise.inform = FALSE)
 
 <!-- scp /Users/kshirley/public_git/nfl_pool_2023/index.Rmd kes@66.228.42.50:/home/kes/public/kennyshirley.com/public_html/nfl2023 -->
 
-<!-- scp 'kes@66.228.42.50:/home/kes/public/kennyshirley.com/public_html/nfl2023/*2023-12-25*'
+<!-- scp 'kes@66.228.42.50:/home/kes/public/kennyshirley.com/public_html/nfl2023/*2023-12-29*'
 /Users/kshirley/public_git/nfl_pool_2023  -->
 
 
@@ -477,6 +477,41 @@ if (n_games_played > previous_games_played) {
 }
 
 ```
+
+
+
+``` {r points-earned}
+
+# get expected points from each of our picks:
+if (n_games_played > previous_games_played) {
+  
+  # This file should now exist:
+  s <- readRDS(paste0("scores_", today, ".rds"))
+  
+  
+  # add up the total scores across simulations:
+  det <- lapply(s, function(x) {
+    rbind(x$div_score, 
+          matrix(x$afc1, nrow = 1), 
+          matrix(x$afc2, nrow = 1), 
+          matrix(x$nfc1, nrow = 1), 
+          matrix(x$nfc2, nrow = 1), 
+          x$champ, 
+          matrix(x$sb, nrow = 1))
+  })
+
+  aa <- array(0, dim = c(15, 5, n_sim))
+  for (i in 1:n_sim) aa[, , i] <- det[[i]]
+  
+  total_pts <- apply(aa, c(1, 2), sum) / n_sim
+  avg_pts <- total_pts / c(1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 5)
+}
+
+
+
+```
+
+
   
 # Standings
 
@@ -496,7 +531,7 @@ names_spaced <- c("Rank",
 
 if (n_games_played > previous_games_played) {
   df <- data.frame(Name = c("Ken", "Nick", "Paul", "Gavin", "Rish"), 
-                   Points_Earned = rep(0, 5), 
+                   Points_Earned = apply(avg_pts == 1, 2, sum), 
                    Expected_Points = e_points, 
                    Win_Probability = win_probability, 
                    Expected_Payout = e_payout, 
@@ -504,7 +539,7 @@ if (n_games_played > previous_games_played) {
                    Conference_Championship = e_conf_pts, 
                    Conference_Champion = e_champ_pts, 
                    Super_Bowl = e_sb_pts)
-  df <- arrange(df, desc(Win_Probability))
+  df <- arrange(df, desc(Points_Earned), desc(Win_Probability))
   df <- cbind(Rank = 1:5, df)
 } else {
   df <- last_state$df
@@ -576,6 +611,8 @@ ts_plot +
 
 # Our Picks
 
+Picks <span style="background-color: #FFFF00">highlighted in yellow</span> denote a pick that is unique among the 5 of us for this particular slot.
+
 ``` {r show-picks}
 rownames(picks) <- as.character(1:15)
 names(picks) <- c("Game", "Points", "Ken", "Nick", "Paul", "Gavin", "Rish")
@@ -588,9 +625,17 @@ gavin_unique <- c("NFC North")
 nick_unique <- c("AFC Conference Championship 1")
 paul_unique <- c("AFC Conference Championship 1")
 
+# Now remove team cities and add expected points:
+new_picks <- picks
+for (i in 1:15) {
+  for (j in 1:5) {
+    new_picks[i, j + 2] <- paste0(tail(strsplit(new_picks[i, j + 2], " ")[[1]], 1), 
+                                  " (", round(total_pts[i, j], 2), ")")
+  }
+}
 
 
-kable(picks, format = "html") %>% 
+kable(new_picks, format = "html") %>% 
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>% 
   column_spec(3, background = ifelse(picks$Game %in% ken_unique, "yellow", "white")) %>% 
   column_spec(4, background = ifelse(picks$Game %in% nick_unique, "yellow", "white")) %>% 
