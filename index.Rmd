@@ -64,6 +64,9 @@ d <- d %>%
                                is_home == "@" ~ as.numeric(wpts), 
                                TRUE ~ as.numeric(lpts)))
 
+# rename wild-card week:
+d$week[d$week == "WildCard"] <- 19
+
 d <- d %>% 
   mutate(week = as.integer(week)) %>% 
   select(week, day, date, time, home_team, home_pts, away_team, away_pts)
@@ -74,8 +77,8 @@ d <- d %>%
   mutate(margin = case_when(!is.na(home_pts) ~ pmin(pmax(home_pts - away_pts, -25), 25)))
 
 # simulate as if we're running this on a certain day:
-# today <- as.Date("2023-12-26")
-today <- substr(Sys.time(), 1, 10)
+today <- as.Date("2024-01-08")
+#today <- substr(Sys.time(), 1, 10)
 d$margin[d$date >= today] <- NA
 
 # count the number of games that have been played:
@@ -183,7 +186,8 @@ if (n_games_played > previous_games_played) {
   # Now, simulate 10,000 regular seasons:
   n_sim <- 10000
   sigma <- summary(f)$sigma
-  N <- nrow(d)
+  d_reg <- filter(d, week <= 18)
+  N <- nrow(d_reg)
   
   if (file.exists(paste0("simulation_10k_", today, ".rds"))) {
     seasons <- readRDS(paste0("simulation_10k_", today, ".rds"))
@@ -193,115 +197,120 @@ if (n_games_played > previous_games_played) {
     # loop through simulations:
     for (i in 1:n_sim) {
       
-      # First, simulate all the rest of the games of the regular season:
-      d_sim <- d %>% 
-        mutate(sim_margin = rnorm(N, 
-                                  mean = beta$estimate[1] + home_beta - away_beta, 
-                                  sd = sigma), 
-               home_win = case_when(!is.na(margin) ~ as.numeric(margin > 0) + 
-                                      0.5 * as.numeric(margin == 0), 
-                                    is.na(margin) ~ as.numeric(sim_margin > 0)))
+      # # First, simulate all the rest of the games of the regular season:
+      # d_sim <- d_reg %>% 
+      #   mutate(sim_margin = rnorm(N, 
+      #                             mean = beta$estimate[1] + home_beta - away_beta, 
+      #                             sd = sigma), 
+      #          home_win = case_when(!is.na(margin) ~ as.numeric(margin > 0) + 
+      #                                 0.5 * as.numeric(margin == 0), 
+      #                               is.na(margin) ~ as.numeric(sim_margin > 0)))
+      # 
+      # # gather info from the home team:
+      # h_df <- d_sim %>% 
+      #   # filter(!is.na(home_pts)) %>%   # for current standings
+      #   group_by(home_team) %>% 
+      #   summarize(W = sum(home_win), 
+      #             L = sum(1 - home_win))
+      # 
+      # # gather info for the away team:
+      # a_df <- d_sim %>% 
+      #   # filter(!is.na(home_pts)) %>%  # for current standings
+      #   group_by(away_team) %>% 
+      #   summarize(W = sum(1 - home_win), 
+      #             L = sum(home_win))
+      # 
+      # # generate standings:
+      # st <- h_df %>% full_join(a_df, by = c("home_team" = "away_team")) %>% 
+      #   mutate(W = W.x + W.y, 
+      #          L = L.x + L.y) %>% 
+      #   select(team = home_team, W, L) %>% 
+      #   inner_join(teams, by = "team") %>% 
+      #   as.data.frame() %>% 
+      #   arrange(conference, division, desc(W))
+      # 
+      # # Compute rank within division:
+      # st <- st %>% 
+      #   group_by(conference, division) %>% 
+      #   mutate(div_rank = rank(L, ties.method = "min"))
+      # 
+      # # gather division winners in their own data frame:
+      # div_winners <- filter(st, div_rank == 1) %>% 
+      #   group_by(conference, division, div_rank) %>% 
+      #   summarize(n = n())
+      # 
+      # # add div_winners to the main standings data frame:
+      # st <- st %>% left_join(filter(div_winners, n == 1), 
+      #                        by = c("conference", "division", "div_rank")) %>% 
+      #   rename(div_winner = n)
+      # 
+      # # compute head-to-head statistics for division tie-breakers
+      # h2h_home <- d_sim %>% 
+      #   group_by(home_team, away_team) %>% 
+      #   summarize(W = sum(home_win), L = sum(1 - home_win))
+      # h2h_away <- d_sim %>% 
+      #   group_by(away_team, home_team) %>% 
+      #   summarize(W = sum(1 - home_win), L = sum(home_win))
+      # 
+      # # summarize the head to head standings
+      # h <- h2h_home %>% full_join(h2h_away, by = c("home_team" = "away_team", 
+      #                                              "away_team" = "home_team")) %>% 
+      #   replace_na(list(W.x = 0, L.x = 0, W.y = 0, L.y = 0)) %>% 
+      #   rename(team1 = home_team, team2 = away_team) %>% 
+      #   mutate(W = W.x + W.y, L = L.x + L.y)
+      # 
+      # # break ties for division winners:
+      # n_ties <- sum(div_winners$n > 1)
+      # if (n_ties > 0) {
+      #   for (j in 1:n_ties) {
+      #     tmp <- st %>% inner_join(filter(div_winners, n > 1) %>% head(j) %>% tail(1), 
+      #                              by = c("conference", "division", "div_rank"))
+      #     if (nrow(tmp) == 2) {  # a tie between 2 teams (not more)
+      #       pair <- filter(h, team1 == tmp$team[1] & team2 == tmp$team[2])
+      #       if (pair$W[1] > pair$L[1]) {
+      #         st$div_winner[st$team == pair$team1] <- 1
+      #       }
+      #       if (pair$W[1] < pair$L[1]) {
+      #         st$div_winner[st$team == pair$team2] <- 1
+      #       } 
+      #       if (pair$W[1] == pair$L[1]) {
+      #         random_winner <- c(pair$team1, pair$team2)[sample(1:2, 1)]
+      #         st$div_winner[st$team == random_winner] <- 1
+      #       }
+      #     } else {  # a tie between 3 or more teams:
+      #       n_teams <- tmp$n[1]
+      #       random_winner <- tmp$team[sample(1:n_teams, 1)]
+      #       st$div_winner[st$team == random_winner] <- 1
+      #     }
+      #   }
+      # }  # now we have all 8 division winners
+      # 
+      # # Add wildcard rankings (here, just randomly rank the wild-card teams
+      # # in the case of a tie... not accurate, but simple)
+      # # this df has all 32 rows/teams
+      # st_wild <- st %>% 
+      #   left_join(st %>% 
+      #               filter(is.na(div_winner)) %>% 
+      #               group_by(conference) %>% 
+      #               mutate(wildcard_rank = rank(L, ties.method = "random")) %>%
+      #               ungroup() %>% 
+      #               select(team, conference, wildcard_rank), 
+      #             by = c("team", "conference"))
+      # 
+      # 
+      # # now we have the playoff picture, with seeds:
+      # playoff <- st_wild %>% 
+      #   replace_na(list(wildcard_rank = 0)) %>% 
+      #   filter(wildcard_rank <= 3) %>% 
+      #   arrange(conference, wildcard_rank, desc(W)) %>% 
+      #   ungroup() %>% 
+      #   mutate(seed = rep(1:7, 2)) %>%
+      #   as.data.frame()
+      # 
+      # fwrite(playoff, file = "./playoff_seeding.csv")
       
-      # gather info from the home team:
-      h_df <- d_sim %>% 
-        # filter(!is.na(home_pts)) %>%   # for current standings
-        group_by(home_team) %>% 
-        summarize(W = sum(home_win), 
-                  L = sum(1 - home_win))
-      
-      # gather info for the away team:
-      a_df <- d_sim %>% 
-        # filter(!is.na(home_pts)) %>%  # for current standings
-        group_by(away_team) %>% 
-        summarize(W = sum(1 - home_win), 
-                  L = sum(home_win))
-      
-      # generate standings:
-      st <- h_df %>% full_join(a_df, by = c("home_team" = "away_team")) %>% 
-        mutate(W = W.x + W.y, 
-               L = L.x + L.y) %>% 
-        select(team = home_team, W, L) %>% 
-        inner_join(teams, by = "team") %>% 
-        as.data.frame() %>% 
-        arrange(conference, division, desc(W))
-      
-      # Compute rank within division:
-      st <- st %>% 
-        group_by(conference, division) %>% 
-        mutate(div_rank = rank(L, ties.method = "min"))
-      
-      # gather division winners in their own data frame:
-      div_winners <- filter(st, div_rank == 1) %>% 
-        group_by(conference, division, div_rank) %>% 
-        summarize(n = n())
-      
-      # add div_winners to the main standings data frame:
-      st <- st %>% left_join(filter(div_winners, n == 1), 
-                             by = c("conference", "division", "div_rank")) %>% 
-        rename(div_winner = n)
-      
-      # compute head-to-head statistics for division tie-breakers
-      h2h_home <- d_sim %>% 
-        group_by(home_team, away_team) %>% 
-        summarize(W = sum(home_win), L = sum(1 - home_win))
-      h2h_away <- d_sim %>% 
-        group_by(away_team, home_team) %>% 
-        summarize(W = sum(1 - home_win), L = sum(home_win))
-      
-      # summarize the head to head standings
-      h <- h2h_home %>% full_join(h2h_away, by = c("home_team" = "away_team", 
-                                                   "away_team" = "home_team")) %>% 
-        replace_na(list(W.x = 0, L.x = 0, W.y = 0, L.y = 0)) %>% 
-        rename(team1 = home_team, team2 = away_team) %>% 
-        mutate(W = W.x + W.y, L = L.x + L.y)
-      
-      # break ties for division winners:
-      n_ties <- sum(div_winners$n > 1)
-      if (n_ties > 0) {
-        for (j in 1:n_ties) {
-          tmp <- st %>% inner_join(filter(div_winners, n > 1) %>% head(j) %>% tail(1), 
-                                   by = c("conference", "division", "div_rank"))
-          if (nrow(tmp) == 2) {  # a tie between 2 teams (not more)
-            pair <- filter(h, team1 == tmp$team[1] & team2 == tmp$team[2])
-            if (pair$W[1] > pair$L[1]) {
-              st$div_winner[st$team == pair$team1] <- 1
-            }
-            if (pair$W[1] < pair$L[1]) {
-              st$div_winner[st$team == pair$team2] <- 1
-            } 
-            if (pair$W[1] == pair$L[1]) {
-              random_winner <- c(pair$team1, pair$team2)[sample(1:2, 1)]
-              st$div_winner[st$team == random_winner] <- 1
-            }
-          } else {  # a tie between 3 or more teams:
-            n_teams <- tmp$n[1]
-            random_winner <- tmp$team[sample(1:n_teams, 1)]
-            st$div_winner[st$team == random_winner] <- 1
-          }
-        }
-      }  # now we have all 8 division winners
-      
-      # Add wildcard rankings (here, just randomly rank the wild-card teams
-      # in the case of a tie... not accurate, but simple)
-      # this df has all 32 rows/teams
-      st_wild <- st %>% 
-        left_join(st %>% 
-                    filter(is.na(div_winner)) %>% 
-                    group_by(conference) %>% 
-                    mutate(wildcard_rank = rank(L, ties.method = "random")) %>%
-                    ungroup() %>% 
-                    select(team, conference, wildcard_rank), 
-                  by = c("team", "conference"))
-      
-      
-      # now we have the playoff picture, with seeds:
-      playoff <- st_wild %>% 
-        replace_na(list(wildcard_rank = 0)) %>% 
-        filter(wildcard_rank <= 3) %>% 
-        arrange(conference, wildcard_rank, desc(W)) %>% 
-        ungroup() %>% 
-        mutate(seed = rep(1:7, 2)) %>%
-        as.data.frame()
+      playoff <- fread("playoff_seeding.csv", data.table = FALSE)
+      playoff <- arrange(playoff, conference, division, seed)
       
       # set up a data frame for the wild card round of playoffs:
       d_19 <- data.frame(week = 19, 
@@ -378,7 +387,11 @@ if (n_games_played > previous_games_played) {
       # 8 division winners, 2 AFC conference championship teams, 2 NFC conf. champ teams, 
       # 1 AFC conf. winner, 1 NFC conf. winner, 1 super bowl champion:
       
-      div_names <- filter(st, div_winner == 1) %>% 
+      # div_names <- filter(st, div_winner == 1) %>% 
+      #   mutate(game = paste(conference, division, sep = "_")) %>% 
+      #   pull(game)
+      
+      div_names <- filter(playoff, div_winner == 1) %>% 
         mutate(game = paste(conference, division, sep = "_")) %>% 
         pull(game)
       
@@ -386,7 +399,7 @@ if (n_games_played > previous_games_played) {
                                  "NFC_Championship_1", "NFC_Championship_2", 
                                  "AFC_Champion", "NFC_Champion", 
                                  "Super_Bowl_Champion"), 
-                        team = c(filter(st, div_winner == 1) %>% pull(team), 
+                        team = c(filter(playoff, div_winner == 1) %>% pull(team), 
                                  d_21$home_team[1], d_21$away_team[1], 
                                  d_21$home_team[2], d_21$away_team[2], 
                                  d_22$home_team, d_22$away_team, 
@@ -487,7 +500,6 @@ if (n_games_played > previous_games_played) {
   
   # This file should now exist:
   s <- readRDS(paste0("scores_", today, ".rds"))
-  
   
   # add up the total scores across simulations:
   det <- lapply(s, function(x) {
@@ -613,6 +625,12 @@ ts_plot +
 
 Picks <span style="background-color: #FFFF00">highlighted in yellow</span> denote a pick that is unique among the 5 of us for this particular slot.
 
+Picks <span style="background-color: #90EE90">highlighted in light green</span> denote a pick that already earned points.
+
+Picks <span style="background-color: #FF6865">highlighted in red</span> denote a pick that is eliminated.
+
+
+
 ``` {r show-picks}
 rownames(picks) <- as.character(1:15)
 names(picks) <- c("Game", "Points", "Ken", "Nick", "Paul", "Gavin", "Rish")
@@ -622,7 +640,7 @@ rish_unique <- c("AFC North", "AFC South", "NFC North", "AFC Conference Champion
                  "NFC Conference Championship 2", "AFC Champion", "Super Bowl Champion")
 ken_unique <- c("AFC West", "NFC South", "NFC Conference Championship 2")
 gavin_unique <- c("NFC North")
-nick_unique <- c("AFC Conference Championship 1")
+nick_unique <- c("AFC Conference Championship 1", "AFC Champion", "Super Bowl Champion")
 paul_unique <- c("AFC Conference Championship 1")
 
 # Now remove team cities and add expected points:
@@ -634,14 +652,30 @@ for (i in 1:15) {
   }
 }
 
+pts_vec <- c(1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 5)
 
 kable(new_picks, format = "html") %>% 
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>% 
-  column_spec(3, background = ifelse(picks$Game %in% ken_unique, "yellow", "white")) %>% 
-  column_spec(4, background = ifelse(picks$Game %in% nick_unique, "yellow", "white")) %>% 
-  column_spec(5, background = ifelse(picks$Game %in% paul_unique, "yellow", "white")) %>% 
-  column_spec(6, background = ifelse(picks$Game %in% gavin_unique, "yellow", "white")) %>% 
-  column_spec(7, background = ifelse(picks$Game %in% rish_unique, "yellow", "white"))
+  column_spec(3, background = ifelse(total_pts[, 1] > 0.999*pts_vec, "lightgreen", 
+                                     ifelse(total_pts[, 1] < 0.0001*pts_vec, "#FF6865", 
+                                            ifelse(picks$Game %in% ken_unique & (1:15) > 8,
+                                              "yellow", "white")))) %>% 
+  column_spec(4, background = ifelse(total_pts[, 2] > 0.999*pts_vec, "lightgreen", 
+                                     ifelse(total_pts[, 2] < 0.0001*pts_vec, "#FF6865", 
+                                            ifelse(picks$Game %in% nick_unique & (1:15) > 8,
+                                            "yellow", "white")))) %>% 
+  column_spec(5, background = ifelse(total_pts[, 3] > 0.999*pts_vec, "lightgreen", 
+                                     ifelse(total_pts[, 3] < 0.0001*pts_vec, "#FF6865", 
+                                            ifelse(picks$Game %in% paul_unique & (1:15) > 8,
+                                            "yellow", "white")))) %>% 
+  column_spec(6, background = ifelse(total_pts[, 4] > 0.999*pts_vec, "lightgreen", 
+                                     ifelse(total_pts[, 4] < 0.0001*pts_vec, "#FF6865", 
+                                            ifelse(picks$Game %in% gavin_unique & (1:15) > 8, 
+                                            "yellow", "white")))) %>% 
+  column_spec(7, background = ifelse(total_pts[, 5] > 0.999*pts_vec, "lightgreen", 
+                                     ifelse(total_pts[, 5] < 0.0001*pts_vec, "#FF6865", 
+                                            ifelse(picks$Game %in% rish_unique & (1:15) > 8, 
+                                            "yellow", "white"))))  
 
 
 ```

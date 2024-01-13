@@ -1,0 +1,15 @@
+team,W,L,division,conference,nickname,div_rank,div_winner,wildcard_rank,seed
+Baltimore Ravens,13,4,North,AFC,Ravens,1,1,0,1
+Buffalo Bills,11,6,East,AFC,Bills,1,1,0,2
+Kansas City Chiefs,11,6,West,AFC,Chiefs,1,1,0,3
+Houston Texans,10,7,South,AFC,Texans,1,1,0,4
+Cleveland Browns,11,6,North,AFC,Browns,2,,1,5
+Miami Dolphins,11,6,East,AFC,Dolphins,1,,2,6
+Pittsburgh Steelers,10,7,North,AFC,Steelers,3,,3,7
+Dallas Cowboys,12,5,East,NFC,Cowboys,1,1,0,2
+Detroit Lions,12,5,North,NFC,Lions,1,1,0,3
+San Francisco 49ers,12,5,West,NFC,49ers,1,1,0,1
+Green Bay Packers,9,8,North,NFC,Packers,2,,3,7
+Philadelphia Eagles,11,6,East,NFC,Eagles,2,,1,5
+Los Angeles Rams,10,7,West,NFC,Rams,2,,2,6
+Tampa Bay Buccaneers,9,8,South,NFC,Bucs,1,1,,4
