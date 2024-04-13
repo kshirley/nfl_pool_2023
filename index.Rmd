@@ -66,6 +66,9 @@ d <- d %>%
 
 # rename wild-card week:
 d$week[d$week == "WildCard"] <- 19
+d$week[d$week == "Division"] <- 20
+d$week[d$week == "ConfChamp"] <- 21
+d$week[d$week == "SuperBowl"] <- 22
 
 d <- d %>% 
   mutate(week = as.integer(week)) %>% 
@@ -76,8 +79,11 @@ d <- d %>%
 d <- d %>% 
   mutate(margin = case_when(!is.na(home_pts) ~ pmin(pmax(home_pts - away_pts, -25), 25)))
 
+# remove row of 'd' that denotes playoffs
+d <- filter(d, !is.na(week))
+
 # simulate as if we're running this on a certain day:
-today <- as.Date("2024-01-08")
+today <- as.Date("2024-01-23")
 #today <- substr(Sys.time(), 1, 10)
 d$margin[d$date >= today] <- NA
 
@@ -310,7 +316,7 @@ if (n_games_played > previous_games_played) {
       # fwrite(playoff, file = "./playoff_seeding.csv")
       
       playoff <- fread("playoff_seeding.csv", data.table = FALSE)
-      playoff <- arrange(playoff, conference, division, seed)
+      playoff <- arrange(playoff, conference, seed)
       
       # set up a data frame for the wild card round of playoffs:
       d_19 <- data.frame(week = 19, 
@@ -326,6 +332,14 @@ if (n_games_played > previous_games_played) {
                                   mean = beta$estimate[1] + home_beta - away_beta, 
                                   sd = sigma), 
                home_win = as.numeric(sim_margin > 0))
+      
+      # put in results for 2024-01-13:
+      d_19$home_win[2:3] <- 1
+      # results for 2024-01-14:
+      d_19$home_win[4:5] <- c(0, 1)
+      # results for 2024-01-15:
+      d_19$home_win[c(1, 6)] <- c(1, 1)
+      
       
       # set up a team-level data frame for next round (division) of playoffs:
       p_20 <- filter(playoff, seed == 1 | 
@@ -346,6 +360,9 @@ if (n_games_played > previous_games_played) {
                                   sd = sigma), 
                home_win = as.numeric(sim_margin > 0))
       
+      # fill in results:
+      d_20$home_win <- c(1, 0, 1, 1)
+        
       # Collect remaining teams:
       p_21 <- filter(playoff, (team %in% d_20$home_team[d_20$home_win == 1]) |
                        (team %in% d_20$away_team[d_20$home_win == 0])) %>% 
@@ -392,6 +409,7 @@ if (n_games_played > previous_games_played) {
       #   pull(game)
       
       div_names <- filter(playoff, div_winner == 1) %>% 
+        arrange(conference, division, seed) %>% 
         mutate(game = paste(conference, division, sep = "_")) %>% 
         pull(game)
       
@@ -399,7 +417,9 @@ if (n_games_played > previous_games_played) {
                                  "NFC_Championship_1", "NFC_Championship_2", 
                                  "AFC_Champion", "NFC_Champion", 
                                  "Super_Bowl_Champion"), 
-                        team = c(filter(playoff, div_winner == 1) %>% pull(team), 
+                        team = c(filter(playoff, div_winner == 1) %>% 
+                                   arrange(conference, division, seed) %>% 
+                                   pull(team), 
                                  d_21$home_team[1], d_21$away_team[1], 
                                  d_21$home_team[2], d_21$away_team[2], 
                                  d_22$home_team, d_22$away_team, 
@@ -540,10 +560,11 @@ names_spaced <- c("Rank",
                   "Conference<br>Championship (8)", 
                   "Conference<br>Champion (6)", 
                   "Super<br>Bowl (5)")
+pts_vec <- c(1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 5)
 
 if (n_games_played > previous_games_played) {
   df <- data.frame(Name = c("Ken", "Nick", "Paul", "Gavin", "Rish"), 
-                   Points_Earned = apply(avg_pts == 1, 2, sum), 
+                   Points_Earned = apply((avg_pts == 1)*pts_vec, 2, sum), 
                    Expected_Points = e_points, 
                    Win_Probability = win_probability, 
                    Expected_Payout = e_payout, 
@@ -692,6 +713,432 @@ DT::datatable(st_today, options = list(pageLength = 32)) %>%
   )
 ```
 
+
+
+# 4 Teams Left
+
+``` {r scenarios-3}
+
+playoff <- fread("playoff_seeding.csv", data.table = FALSE)
+playoff <- arrange(playoff, conference, seed)
+
+# set up a data frame for the wild card round of playoffs:
+d_19 <- data.frame(week = 19, 
+                   home_team = filter(playoff, seed %in% (2:4)) %>% 
+                     pull(team), 
+                   home_pts = 0, 
+                   away_team = (filter(playoff, seed %in% (5:7)) %>% 
+                                  pull(team))[c(3:1, 6:4)], 
+                   away_pts = 0) %>% 
+  left_join(select(beta, team, home_beta = beta_adj), by = c("home_team" = "team")) %>% 
+  left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team")) %>% 
+  mutate(sim_margin = rnorm(6, 
+                            mean = beta$estimate[1] + home_beta - away_beta, 
+                            sd = sigma), 
+         home_win = as.numeric(sim_margin > 0))
+
+# put in results for 2024-01-13:
+d_19$home_win[2:3] <- 1
+# results for 2024-01-14:
+d_19$home_win[4:5] <- c(0, 1)
+# results for 2024-01-15:
+d_19$home_win[c(1, 6)] <- c(1, 1)
+
+
+# set up a team-level data frame for next round (division) of playoffs:
+p_20 <- filter(playoff, seed == 1 | 
+                 (team %in% d_19$home_team[d_19$home_win == 1]) |
+                 (team %in% d_19$away_team[d_19$home_win == 0])) %>% 
+  arrange(conference, seed)
+
+# set up a data frame for division round of playoffs:
+d_20 <- data.frame(week = 20, 
+                   home_team = p_20$team[c(1, 2, 5, 6)], 
+                   home_pts = 0, 
+                   away_team = p_20$team[c(4, 3, 8, 7)], 
+                   away_pts = 0) %>% 
+  left_join(select(beta, team, home_beta = beta_adj), by = c("home_team" = "team")) %>% 
+  left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team")) %>% 
+  mutate(sim_margin = rnorm(4, 
+                            mean = beta$estimate[1] + home_beta - away_beta, 
+                            sd = sigma), 
+         home_win = as.numeric(sim_margin > 0))
+
+# fill in results:
+d_20$home_win <- c(1, 0, 1, 1)
+
+# Collect remaining teams:
+p_21 <- filter(playoff, (team %in% d_20$home_team[d_20$home_win == 1]) |
+                 (team %in% d_20$away_team[d_20$home_win == 0])) %>% 
+  arrange(conference, seed)
+
+# set up data frame for AFC and NFC championship games:
+d_21 <- data.frame(week = 21, 
+                   home_team = p_21$team[c(1, 3)], 
+                   home_pts = 0, 
+                   away_team = p_21$team[c(2, 4)], 
+                   away_pts = 0) %>% 
+  left_join(select(beta, team, home_beta = beta_adj), by = c("home_team" = "team")) %>% 
+  left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team")) %>% 
+  mutate(sim_margin = rnorm(2, 
+                            mean = beta$estimate[1] + home_beta - away_beta, 
+                            sd = sigma), 
+         home_win = as.numeric(sim_margin > 0))
+
+# set up the rest of the season:
+the_rest <- data.frame(week = 22, 
+                       home_team = NA, 
+                       home_pts = 0, 
+                       away_team = NA, 
+                       away_pts = 0, 
+                       home_beta = NA, 
+                       away_beta = NA,
+                       sim_margin = NA, 
+                       home_win = NA)
+
+q <- bind_rows(d_21, the_rest)
+
+b <- matrix(NA, 8, 3)
+for (i in 1:3) {
+  b[, i] <- rep(rep(0:1, each = 2^(i-1)), 2^(3-i)) 
+}
+
+scenario <- vector("list", 8) 
+for (i in 1:8) {
+  x <- select(q, week, home_team, away_team, home_beta, away_beta)
+  x <- mutate(x, p_home = round(pnorm(home_beta - away_beta + 3, 0, sigma), 4))
+  x$home_win <- b[i, ]
+  x$winner <- NA
+  x$winner[1:2] <- ifelse(b[i, 1:2] == 1, x$home_team[1:2], x$away_team[1:2])
+  x$home_team[3] <- x$winner[1]
+  x$away_team[3] <- x$winner[2]
+  x$home_beta[3] <- beta$beta_adj[match(x$home_team[3], beta$team)]
+  x$away_beta[3] <- beta$beta_adj[match(x$away_team[3], beta$team)]
+  x$p_home[3] <- round(pnorm(x$home_beta[3] - x$away_beta[3], 0, sigma), 4)
+  x$winner[3] <- ifelse(x$home_win[3] == 1, x$home_team[3], x$away_team[3])
+  scenario[[i]] <- x
+}
+
+# Now, for each scenario, let's score it against out picks:
+sim_df <- scenario[[1]]
+pick_df <- picks
+
+score_semifinals <- function(sim_df, pick_df) {
+  champ <- matrix(as.numeric(sim_df$winner[1:2] == select(picks, Ken:Rish) %>% slice(13:14)), 
+                  nrow = 2, ncol = 5)*3
+  sb <- as.numeric(pick_df[15, 3:7] == sim_df$winner[3])*5
+  return(champ[1, ] + champ[2, ] + sb)
+}
+
+scores <- vector("list", 8)
+for (i in 1:8) {
+  scores[[i]] <- score_semifinals(sim_df = scenario[[i]], pick_df = picks)
+}
+
+out <- do.call(rbind, scores)
+out_df <- as.data.frame(out)
+names(out_df) <- names(picks)[3:7]
+
+# get probability of each scenario:
+p_vec <- sapply(scenario, function(x) prod(ifelse(x$home_win == 1, x$p_home, 1 - x$p_home)))
+
+score_now <- c(5, 7, 6, 7, 7)
+final_score <- out_df
+for (i in 1:8) final_score[i, ] <- final_score[i, ] + score_now
+
+winner <- rep("", 8)
+for (i in 1:8) {
+  winner[i] <- paste(names(final_score)[which(final_score[i, ] == max(final_score[i, ]))], collapse = "|")
+}
+
+# put it all into a data frame:
+all <- data.frame(b, final_score, winner, p_vec)
+names(all)[1:3] <- c("AFC_Champ", "NFC_Champ", "SuperBowl")
+
+for (i in 1:3) {
+  all[, i] <- sapply(scenario, function(x) x$winner[i])
+}
+
+# group by winner: how many scenarios result in each possible outcome (including ties)?
+all %>% 
+  group_by(winner) %>% 
+  summarize(n_scenarios = n(), 
+            probability = round(sum(p_vec), 4)) %>% 
+  ungroup() %>% 
+  arrange(desc(probability)) %>% 
+  kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+
+``` {r show-all-3}
+all$p_vec <- round(all$p_vec, 4)
+all <- rename(all, probability = p_vec)
+DT::datatable(all, options = list(pageLength = 8))
+```
+
+
+If the <b>Chiefs beat the Ravens</b>, then <b>Nick wins</b>.
+
+If the <b>Ravens beat the Chiefs</b>...
+
+ - ... and the <b>Lions beat the 49ers</b>, then <b>Rish wins</b>.
+ 
+ - ... and the <b>49ers beat the Lions</b>, then <b>it's a tie</b>, and will go down to the Super Bowl tiebreaker.
+
+
+<!-- # 8 Teams Left -->
+
+<!-- Let's just compute who would win our pool for every single possible outcome when there are 8 teams left. -->
+
+<!-- There should only be $2^7 = 128$ possible scenarios. -->
+
+<!-- Here is the list of possible winners of our pool, with the associated probability (and the number of scenarios, out of 128, leading to this outcome): -->
+
+<!-- I forget how we said we'd break ties. Either random, or Super Bowl total points? -->
+
+``` {r scenarios, eval = FALSE}
+
+playoff <- fread("playoff_seeding.csv", data.table = FALSE)
+playoff <- arrange(playoff, conference, seed)
+
+# set up a data frame for the wild card round of playoffs:
+d_19 <- data.frame(week = 19, 
+                   home_team = filter(playoff, seed %in% (2:4)) %>% 
+                     pull(team), 
+                   home_pts = 0, 
+                   away_team = (filter(playoff, seed %in% (5:7)) %>% 
+                                  pull(team))[c(3:1, 6:4)], 
+                   away_pts = 0) %>% 
+  left_join(select(beta, team, home_beta = beta_adj), by = c("home_team" = "team")) %>% 
+  left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team")) %>% 
+  mutate(sim_margin = rnorm(6, 
+                            mean = beta$estimate[1] + home_beta - away_beta, 
+                            sd = sigma), 
+         home_win = as.numeric(sim_margin > 0))
+
+# put in results for 2024-01-13:
+d_19$home_win[2:3] <- 1
+# results for 2024-01-14:
+d_19$home_win[4:5] <- c(0, 1)
+# results for 2024-01-15:
+d_19$home_win[c(1, 6)] <- c(1, 1)
+
+
+# set up a team-level data frame for next round (division) of playoffs:
+p_20 <- filter(playoff, seed == 1 | 
+                 (team %in% d_19$home_team[d_19$home_win == 1]) |
+                 (team %in% d_19$away_team[d_19$home_win == 0])) %>% 
+  arrange(conference, seed)
+
+# set up a data frame for division round of playoffs:
+d_20 <- data.frame(week = 20, 
+                   home_team = p_20$team[c(1, 2, 5, 6)], 
+                   home_pts = 0, 
+                   away_team = p_20$team[c(4, 3, 8, 7)], 
+                   away_pts = 0) %>% 
+  left_join(select(beta, team, home_beta = beta_adj), by = c("home_team" = "team")) %>% 
+  left_join(select(beta, team, away_beta = beta_adj), by = c("away_team" = "team")) %>% 
+  mutate(sim_margin = rnorm(4, 
+                            mean = beta$estimate[1] + home_beta - away_beta, 
+                            sd = sigma), 
+         home_win = as.numeric(sim_margin > 0))
+
+# set up the rest of the season:
+the_rest <- data.frame(week = c(21, 21, 22), 
+                       home_team = rep(NA, 3), 
+                       home_pts = numeric(3), 
+                       away_team = rep(NA, 3), 
+                       away_pts = numeric(3), 
+                       home_beta = NA, 
+                       away_beta = NA,
+                       sim_margin = NA, 
+                       home_win = NA)
+
+q <- bind_rows(d_20, the_rest)
+
+b <- matrix(NA, 128, 7)
+for (i in 1:7) {
+  b[, i] <- rep(rep(0:1, each = 2^(i-1)), 2^(7-i)) 
+}
+
+scenario <- vector("list", 128) 
+for (i in 1:128) {
+  x <- select(q, week, home_team, away_team, home_beta, away_beta)
+  x <- mutate(x, p_home = round(pnorm(home_beta - away_beta + 3, 0, sigma), 4))
+  x$home_win <- b[i, ]
+  x$winner <- NA
+  x$winner[1:4] <- ifelse(b[i, 1:4] == 1, x$home_team[1:4], x$away_team[1:4])
+  x$home_team[5] <- ifelse(b[i, 1] == 1, x$winner[1], x$winner[2])
+  x$home_team[6] <- ifelse(b[i, 3] == 1, x$winner[3], x$winner[4])
+  x$away_team[5] <- ifelse(b[i, 1] == 1, x$winner[2], x$winner[1])
+  x$away_team[6] <- ifelse(b[i, 3] == 1, x$winner[4], x$winner[3])
+  x$home_beta[5:6] <- beta$beta_adj[match(x$home_team[5:6], beta$team)]
+  x$away_beta[5:6] <- beta$beta_adj[match(x$away_team[5:6], beta$team)]
+  x$p_home[5:6] <- round(pnorm(x$home_beta[5:6] - x$away_beta[5:6] + 3, 0, sigma), 4)
+  x$winner[5:6] <- ifelse(x$home_win[5:6] == 1, x$home_team[5:6], x$away_team[5:6])
+  x$home_team[7] <- x$winner[5]
+  x$away_team[7] <- x$winner[6]
+  x$home_beta[7] <- beta$beta_adj[match(x$home_team[7], beta$team)]
+  x$away_beta[7] <- beta$beta_adj[match(x$away_team[7], beta$team)]
+  x$p_home[7] <- round(pnorm(x$home_beta[7] - x$away_beta[7], 0, sigma), 4)
+  x$winner[7] <- ifelse(x$home_win[7] == 1, x$home_team[7], x$away_team[7])
+  scenario[[i]] <- x
+}
+
+# Now, for each scenario, let's score it against out picks:
+score_quarterfinals <- function(sim_df, pick_df) {
+  afc1 <- as.numeric(pick_df[9, 3:7] %in% sim_df$winner[1:2])*2
+  afc2 <- as.numeric(pick_df[10, 3:7] %in% sim_df$winner[1:2])*2
+  nfc1 <- as.numeric(pick_df[11, 3:7] %in% sim_df$winner[3:4])*2
+  nfc2 <- as.numeric(pick_df[12, 3:7] %in% sim_df$winner[3:4])*2
+  champ <- matrix(as.numeric(sim_df$winner[5:6] == select(picks, Ken:Rish) %>% slice(13:14)), 
+                  nrow = 2, ncol = 5)*3
+  sb <- as.numeric(pick_df[15, 3:7] == sim_df$winner[7])*5
+  # return(list(afc1 = afc1, afc2 = afc2, nfc1 = nfc1, nfc2 = nfc2, 
+  #             champ = champ, sb = sb))
+  return(afc1 + afc2 + nfc1 + nfc2 + champ[1, ] + champ[2, ] + sb)
+}
+
+scores <- vector("list", 128)
+for (i in 1:128) {
+  scores[[i]] <- score_quarterfinals(sim_df = scenario[[i]], pick_df = picks)
+}
+
+out <- do.call(rbind, scores)
+out_df <- as.data.frame(out)
+names(out_df) <- names(picks)[3:7]
+
+# get probability of each scenario:
+p_vec <- sapply(scenario, function(x) prod(ifelse(x$home_win == 1, x$p_home, 1 - x$p_home)))
+
+score_now <- c(3, 3, 4, 3, 3)
+final_score <- out_df
+for (i in 1:128) final_score[i, ] <- final_score[i, ] + score_now
+
+winner <- rep("", 128)
+for (i in 1:128) {
+  winner[i] <- paste(names(final_score)[which(final_score[i, ] == max(final_score[i, ]))], collapse = "|")
+}
+
+# put it all into a data frame:
+all <- data.frame(b, final_score, winner, p_vec)
+names(all)[1:7] <- c("AFC_Div1", "AFC_Div2", "NFC_Div1", "NFC_Div2", "AFC_Champ", "NFL_Champ", "SuperBowl")
+
+for (i in 1:7) {
+  all[, i] <- sapply(scenario, function(x) x$winner[i])
+}
+
+# group by winner: how many scenarios result in each possible outcome (including ties)?
+all %>% 
+  group_by(winner) %>% 
+  summarize(n_scenarios = n(), 
+            probability = round(sum(p_vec), 4)) %>% 
+  ungroup() %>% 
+  arrange(desc(probability)) %>% 
+  kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+
+
+<!-- <br> -->
+<!-- And here are summaries of outcomes from each possible winner of the 4 Divisional Games. -->
+
+<!-- <b>Saturday 4:30pm</b> -->
+
+<!-- - If the Ravens beat the Texans, Gavin is eliminated. -->
+
+<!-- <b>Saturday 8:15pm</b> -->
+
+<!-- - If the 49ers beat the Packers, Ken is eliminated. -->
+<!-- - If the Packers beat the 49ers, Paul is eliminated. -->
+
+<!-- <b>Sunday 3:00pm</b> -->
+
+<!-- - No matter who wins in Lions vs. Bucs, we're all still alive. -->
+
+<!-- <b>Sunday 6:30pm</b> -->
+
+<!-- - If the Bills beat the Chiefs, Nick and Gavin are both eliminated. -->
+
+
+``` {r divisional-round, eval = FALSE}
+all$p_vec <- round(all$p_vec, 4)
+
+a1 <- all %>% 
+  group_by(AFC_Div1, winner) %>% 
+  summarize(n_scenarios = n(), 
+            probability = sum(p_vec))
+
+a1 %>% 
+  kable() %>% 
+  kable_styling(full_width = FALSE) %>% 
+  row_spec(which(a1$AFC_Div1 == "Houston Texans"), bold = T, color = "white", background = gray(0.5))
+
+a2 <- all %>% 
+  group_by(AFC_Div2, winner) %>% 
+  summarize(n_scenarios = n(), 
+            probability = sum(p_vec))
+
+a2 %>% 
+  kable() %>% 
+  kable_styling(full_width = FALSE) %>% 
+  row_spec(which(a2$AFC_Div2 == "Kansas City Chiefs"), bold = T, color = "white", background = gray(0.5))
+
+
+
+a3 <- all %>% 
+  group_by(NFC_Div1, winner) %>% 
+  summarize(n_scenarios = n(), 
+            probability = sum(p_vec))
+
+a3 %>% 
+  kable() %>% 
+  kable_styling(full_width = FALSE) %>% 
+  row_spec(which(a3$NFC_Div1 == "Green Bay Packers"), bold = T, color = "white", background = gray(0.5))
+
+
+
+
+a4 <- all %>% 
+  group_by(NFC_Div2, winner) %>% 
+  summarize(n_scenarios = n(), 
+            probability = sum(p_vec))
+
+a4 %>% 
+  kable() %>% 
+  kable_styling(full_width = FALSE) %>% 
+  row_spec(which(a4$NFC_Div2 == "Tampa Bay Buccaneers"), bold = T, color = "white", background = gray(0.5))
+
+# all %>% 
+#   group_by(NFC_Div1, winner) %>% 
+#   summarize(n_scenarios = n(), 
+#             probability = sum(p_vec)) %>% 
+#   kable() %>% 
+#   kable_styling(full_width = FALSE)
+# 
+# all %>% 
+#   group_by(AFC_Div2, winner) %>% 
+#   summarize(n_scenarios = n(), 
+#             probability = sum(p_vec)) %>% 
+#   kable() %>% 
+#   kable_styling(full_width = FALSE)
+# 
+# all %>% 
+#   group_by(NFC_Div2, winner) %>% 
+#   summarize(n_scenarios = n(), 
+#             probability = sum(p_vec)) %>% 
+#   kable() %>% 
+#   kable_styling(full_width = FALSE)
+```
+
+<!-- And here are all the scenarios possible (all 128 of them): -->
+
+``` {r all-scenarios, eval = FALSE}
+DT::datatable(all, options = list(pageLength = 128))
+
+```
 
 
 
